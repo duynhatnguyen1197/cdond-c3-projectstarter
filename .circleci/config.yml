@@ -181,6 +181,27 @@ jobs:
             ansible-playbook -i inventory.txt configure-server.yml
       # Here's where you will add some code to rollback on failure      
 
+  run-migrations:
+    docker:
+      - image: circleci/node
+    steps:
+      - checkout
+      - run:
+          name: Run migrations
+          command: |
+            cd backend
+            npm install
+            npm run migrations > migrations_dump.txt
+      - run:
+          name: Send migration results to kvdb.io
+          command: |
+            if grep -q "has been executed successfully." ~/project/backend/migrations_dump.txt
+              then
+              # If you are using kvdb.io, generate the bucket ID "9GE4jRtKznmVKRfvdBABBe" in your local terminal first
+              curl https://kvdb.io/Y3saTGEn3dusEAqbvecxoj/migration_${CIRCLE_WORKFLOW_ID:0:7}  -d '1'
+            fi
+     # Here's where you will add some code to rollback on failure
+
 workflows:
   default:
     jobs:
@@ -201,6 +222,5 @@ workflows:
               only: [master]
       - configure-infrastructure:
           requires: [deploy-infrastructure]
-          filters:
-            branches:
-              only: [master]
+      - run-migrations:
+          requires: [configure-infrastructure]
