@@ -202,6 +202,54 @@ jobs:
             fi
      # Here's where you will add some code to rollback on failure
 
+  deploy-frontend:
+    docker:
+      - image: amazon/aws-cli	
+    steps:
+      - checkout
+      - run:
+          name: Install ansible
+          command: |
+            apk add --update ansible
+      - run:
+          name: Install aws cli
+          command: |
+            yum install -y aws-cli
+      - run:
+          name: Install npm
+          command: |
+            npm install
+      - run:
+          name: Install python
+          command: |
+            yum install -y python3
+      - run:
+          name: Install nodeJs
+          command: |
+            curl -sL https://rpm.nodesource.com/setup_14.x | bash -
+            yum install -y nodejs
+      - run:
+          name: Get backend url
+          command: |
+            # your code here
+            export BACKEND_IP=$(aws ec2 describe-instances \
+              --query 'Reservations[*].Instances[*].PublicIpAddress' \
+              --filters "Name=tag:project,Values=udapeople" \
+              --output text)
+            export API_URL="http://${BACKEND_IP}:3030"
+            echo "${API_URL}"
+            echo API_URL="http://${BACKEND_IP}:3030" >> frontend/.env
+            cat frontend/.env
+      - run:
+          name: Deploy frontend objects
+          command: |
+            cd frontend
+            npm install
+            npm run build
+            tar -czvf artifact-"${CIRCLE_WORKFLOW_ID:0:7}".tar.gz dist
+            aws s3 cp dist s3://udapeople-${CIRCLE_WORKFLOW_ID:0:7} --recursive
+      # Here's where you will add some code to rollback on failure 
+
 workflows:
   default:
     jobs:
@@ -224,3 +272,5 @@ workflows:
           requires: [deploy-infrastructure]
       - run-migrations:
           requires: [configure-infrastructure]
+      - deploy-frontend:
+          requires: [run-migrations]
